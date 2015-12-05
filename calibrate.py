@@ -40,7 +40,7 @@ def setup_dmm(dmm, function):
     dmm.auto_range = 'on'
     
     # These may be specific to the Keithley 2000 driver and will need changing
-    # if using a different DMM
+    # if using a different DMM.
     dmm.nplc = 1
     dmm.filter.count = 10
     dmm.filter.type = 'repeat'

@@ -1,5 +1,5 @@
 
-# This was based on bson's python scripts
+# This was based on bson's python scripts which in turn were based on LaurentR's MATLAB script
 
 import datetime, time, math
 
@@ -116,7 +116,7 @@ class DP832Cal:
     def calibrate(self, channels=range(1, 4), update=False):
         print("Calibrating:")
         self._print_instrument(self._psu)
-        print("With:")
+        print("\nWith:")
         self._print_instrument(self._dmm)
         
         if self._manual_current_limit < 3.2:
