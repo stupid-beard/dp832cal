@@ -35,30 +35,41 @@ class DP832Cal:
         if psu.identity.instrument_model not in self.known_list:
             raise ValueError("Model %s not recognised as a DP832 power supply" % (psu.identity.instrument_model))
         
-        self._max_current = 10
+        self._dmm_setup_callback = None
+        self._manual_current_limit = 10
         
         self._psu = psu
         self._dmm = dmm
     
     @property
-    def max_current(self):
-        return self._max_current
+    def manual_current_limit(self):
+        return self._manual_current_limit
     
-    @max_current.setter
-    def max_current(self, value):
-        self._max_current = float(value)
+    @manual_current_limit.setter
+    def manual_current_limit(self, value):
+        self._manual_current_limit = float(value)
+    
+    @property
+    def dmm_setup_callback(self):
+        return self._dmm_setup_callback
+    
+    @dmm_setup_callback.setter
+    def dmm_setup_callback(self, value):
+        self._dmm_setup_callback = value
         
     def _setup_dmm(self, function):
-        self._dmm.measurement_function = function
-        self._dmm.auto_range = 'on'
-        
-        # These may be specific to the Keithley 2000 driver and may need changing if using a different DMM
-        self._dmm.measurement.continuous = 'off'
-        self._dmm.nplc = 1
-        self._dmm.filter.count = 10
-        self._dmm.filter.type = 'repeat'
-        self._dmm.filter.enabled = 'on'
+        if self._dmm_setup_callback:
+            self._dmm_setup_callback(self._dmm, function)
+        else:
+            self._dmm.measurement_function = function
+            self._dmm.auto_range = 'on'
 
+    def _print_instrument(self, inst):
+        print("   %s %s (%s) %s" % (inst.identity.instrument_manufacturer,
+                                    inst.identity.instrument_model,
+                                    inst.identity.instrument_serial_number,
+                                    inst.identity.instrument_firmware_revision))
+        
     def _print_val(self, what, unit, step, point, value):
         if point != 0:
             value_pct_err=math.fabs((point-value)/point)*100.0
@@ -69,7 +80,7 @@ class DP832Cal:
     def _wait_for_enter(self, msg):
         print()
         print(msg)
-        input("Press enter to continue")
+        input("Press enter to continue: ")
     
     def _calib_single(self, what, value_table, channel, unit, index):
         print()
@@ -83,37 +94,52 @@ class DP832Cal:
         manual = False
 
         for value in values:
-            if unit == 'A' and value > self._max_current and manual == False:
+            if unit == 'A' and value > self._manual_current_limit and manual == False:
                 manual = True
                 print()
-                print("WARNING: OVER-RANGE CURRENT, MANUAL INPUT REQUIRED")
-                print()
-                self._wait_for_enter("Connect alternative DMM CURRENT inputs to PSU channel %d" % (channel))
+                print("WARNING: CURRENT BEYOND DMM LIMIT, MANUAL INPUT REQUIRED")
+                self._wait_for_enter("Connect alternative DMM 10A CURRENT inputs to PSU channel %d" % (channel))
                 
             self._psu._write("CALibration:Set CH%d,%s,%d,%g%s,%d" % (channel, ident, step, value, unit, index));
+            
             time.sleep(self.stabilization_time_sec)
             if not manual:
                 value_read = self._dmm.measurement.read(1)
             else:
                 value_read = float(input("Enter DMM reading: ").strip())
+            
             self._psu._write("CALibration:MEAS CH%d,%s,%d,%g%s,%d" % (channel, ident, step, value_read, unit, index));
+            
             self._print_val(what, unit, step, value, value_read);
             step += 1
     
     def calibrate(self, channels=range(1, 4), update=False):
+        print("Calibrating:")
+        self._print_instrument(self._psu)
+        print("With:")
+        self._print_instrument(self._dmm)
+        
+        if self._manual_current_limit < 3.2:
+            print()
+            print("WARNING: Currents greater than %.01f A will require alternative DMM and manual entry" % (self._manual_current_limit))
+        
+        print()
+        print("Press Ctrl-C at any time to abort")
+        print()
+        
         # Ensure all channels have a matching calibration date
         now = datetime.date.today().isoformat()
         
         for channel in channels:
-            print("Calibrating channel %d ..." % (channel))
-            
-            self._psu._write("CALibration:Start 11111,CH%d" % channel)
-            self._psu._write("CALibration:Clear CH%d,ALL" % channel)
-            self._psu.utility.reset()
+            print("CALIBRATING CHANNEL %d ..." % (channel))
             
             # Voltage
             self._wait_for_enter("Connect the DMM VOLTAGE inputs to the PSU channel %d" % (channel))
             self._setup_dmm('dc_volts')
+            
+            self._psu._write("CALibration:Start 11111,CH%d" % channel)
+            self._psu._write("CALibration:Clear CH%d,ALL" % channel)
+            self._psu.utility.reset()
             
             self._psu.outputs[channel - 1].enabled = 1
             
@@ -130,8 +156,11 @@ class DP832Cal:
             
             self._calib_single("DAC-I", self.cal_daci, channel, "A", 1)
             
-            self._psu.outputs[channel - 1].current_limit = 0.1
-            self._wait_for_enter("Connect original DMM CURRENT inputs to PSU channel %d" % (channel))
+            if self._manual_current_limit < 3.2:
+                # If alternative DMM was required, wait for original to be re-connected
+                self._psu.outputs[channel - 1].current_limit = 0.1
+                self._wait_for_enter("Reconnect original DMM CURRENT inputs to PSU channel %d" % (channel))
+            
             self._calib_single("ADC-I", self.cal_adci, channel, "A", 0)
             
             self._psu.outputs[channel - 1].enabled = 0
