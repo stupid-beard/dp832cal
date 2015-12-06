@@ -10,7 +10,7 @@ The SCPI calibration information came from [TooOldForThis](http://www.eevblog.co
 * A Rigol DP832 Power Supply
 * A 6.5 Digit Multimeter supported by python-ivi
 
-If you have a Keithley 2000 or compatible meter, I have initial support implemented in a (fork of python-ivi)[https://github.com/stupid-beard/python-ivi/tree/feature/keithley2000].
+If you have a Keithley 2000 or compatible meter, I have initial support implemented in a [fork of python-ivi](https://github.com/stupid-beard/python-ivi/tree/feature/keithley2000).
 
 This was written using Python 3 on Linux and has not been tested on other platforms. It will require minor hackery to work on Python 2.
 
