@@ -7,6 +7,12 @@ import cal
 # Change these as appropriate for your instruments
 ###############################################################################
 
+# For the Keithley 2000 driver, see:
+#    https://github.com/stupid-beard/python-ivi/tree/feature/keithley2000
+#
+# At the time of writing it is experimental and incomplete, but is sufficient
+# for use with this calibration script.
+
 psu = ivi.rigol.rigolDP832("TCPIP0::10.1.0.11::INSTR")
 dmm = ivi.keithley.keithley2000("ASRL::/dev/ttyS2,9600,8n1::INSTR")
 
